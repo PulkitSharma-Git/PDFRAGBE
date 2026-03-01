@@ -95,12 +95,12 @@ const getEmbeddingsParams = () => {
 // Endpoint to query the vectorized PDF data
 app.post("/query", async (req, res) => {
     try {
-        const { question } = req.body;
+        const { question, filename } = req.body;
         if (!question) {
             return res.status(400).json({ error: "Missing 'question' in request body" });
         }
 
-        console.log(`Received Query: "${question}"`);
+        console.log(`Received Query: "${question}" for file: ${filename || 'Any'}`);
 
         // 1. Initialize Gemini LLM (gemini-2.5-flash for speed and cost efficiency)
         const llm = new ChatGoogleGenerativeAI({
@@ -120,8 +120,19 @@ app.post("/query", async (req, res) => {
                 clientConfig: { checkCompatibility: false }
             }
         );
-        // Ask Qdrant for the top 4 most relevant chunks
-        const retriever = vectorStore.asRetriever(4);
+        
+        // Ask Qdrant for the top 4 most relevant chunks, filtering by filename if provided
+        let filter = undefined;
+        if (filename) {
+            filter = {
+                must: [{
+                    key: "metadata.source_filename",
+                    match: { value: filename }
+                }]
+            };
+        }
+        
+        const retriever = vectorStore.asRetriever({ k: 4, filter: filter });
 
         // 3. Define the Prompt Template
         const template = `You are a helpful assistant answering queries based on the provided PDF context.

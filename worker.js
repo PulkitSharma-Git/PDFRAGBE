@@ -81,11 +81,33 @@ const worker = new Worker('file-upload-queue', async job => {
         // Step 3: Configure Gemini Embedding model
         const embeddings = getEmbeddingsParams();
 
-        // Step 4: Store document embeddings in Qdrant
-        console.log(`Connecting to Qdrant to store ${processedDocs.length} chunks...`);
-        
-        // We will create a fresh collection for the new document using its unique ID (or filename as the base)
+        // Step 4: Clean up old embeddings for this filename in Qdrant
+        console.log(`Checking Qdrant for old embeddings of ${data.filename}...`);
         const collectionName = `pdf_docs`;
+
+        try {
+            const { QdrantClient } = await import('@qdrant/js-client-rest');
+            const client = new QdrantClient({
+                url: process.env.QDRANT_URL || "http://localhost:6333",
+                apiKey: process.env.QDRANT_API_KEY || undefined,
+            });
+
+            // Delete any existing vectors that match this document's filename exactly
+            await client.delete(collectionName, {
+                filter: {
+                    must: [{
+                        key: "metadata.source_filename",
+                        match: { value: data.filename }
+                    }]
+                }
+            });
+            console.log(`Successfully purged previous context for ${data.filename}`);
+        } catch (cleanupError) {
+             console.log(`Skipped cleanup step (maybe first upload or network error): ${cleanupError.message}`);
+        }
+
+        // Step 5: Store document embeddings in Qdrant
+        console.log(`Connecting to Qdrant to store ${processedDocs.length} new chunks...`);
 
         await QdrantVectorStore.fromDocuments(
             processedDocs,
