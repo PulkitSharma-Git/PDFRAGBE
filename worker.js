@@ -39,20 +39,21 @@ const getEmbeddingsParams = () => {
 };
 
 const worker = new Worker('file-upload-queue', async job => {
-    console.log("Job Processing Started:", job.data);
+    console.log("Job Processing Started:", job.data.filename);
     const data = JSON.parse(job.data);
-    const filePath = data.path;
 
     try {
-        // Step 1: Read and parse the PDF text utilizing pdf-parse directly
-        console.log(`Loading PDF from ${filePath}...`);
-        const dataBuffer = fs.readFileSync(filePath);
-        const pdfData = await pdfParse(dataBuffer);
+        // Step 1: Read extracted text directly from the queue payload
+        console.log(`Loading pre-extracted text for ${data.filename}...`);
         
+        if (!data.text) {
+             throw new Error("No text payload provided in the queue job.");
+        }
+
         const docs = [
             new Document({
-                pageContent: pdfData.text,
-                metadata: { source: filePath }
+                pageContent: data.text,
+                metadata: { source: data.filename }
             })
         ];
 

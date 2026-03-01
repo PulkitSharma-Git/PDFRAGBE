@@ -31,17 +31,8 @@ const queue = new Queue("file-upload-queue", {
     connection: redisConnection
 });
 
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, 'uploads/')
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
-    cb(null, `${uniqueSuffix}-${file.originalname}`)
-  }
-})
-
-const upload = multer({ storage: storage })
+const storage = multer.memoryStorage();
+const upload = multer({ storage: storage });
 
 const app = express();
 app.use(cors());
@@ -51,14 +42,45 @@ app.get("/", (req, res) => {
     res.json({ status: "All Good !" });
 });
 
+// Provide pdf-parse globally for the backend
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const pdfParse = require('pdf-parse');
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+
 // Endpoint to upload PDF to be processed by the worker
 app.post("/upload/pdf", upload.single("pdf"), async (req, res) => {
-    await queue.add("file-ready", JSON.stringify({
-        filename: req.file.originalname,
-        destination: req.file.destination,
-        path: req.file.path,
-    }))
-    return res.json({ message: "Uploaded for processing" })
+    let tmpPath;
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: "No PDF file uploaded" });
+        }
+        
+        console.log(`Extracting text from uploaded PDF...`);
+        // Workaround for pdf-parse buffer bug: write to temp file then parse
+        tmpPath = path.join(os.tmpdir(), `upload-${Date.now()}-${req.file.originalname}`);
+        fs.writeFileSync(tmpPath, req.file.buffer);
+        
+        const dataBuffer = fs.readFileSync(tmpPath);
+        const pdfData = await pdfParse(dataBuffer);
+
+        await queue.add("file-ready", JSON.stringify({
+            filename: req.originalname || req.file.originalname,
+            text: pdfData.text, 
+        }));
+
+        // Clean up temp file immediately after parsing
+        if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath);
+
+        return res.json({ message: "PDF extracted and queued for processing" });
+
+    } catch (error) {
+        if (tmpPath && fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath);
+        console.error("Upload/Parsing Error:", error);
+        return res.status(500).json({ error: "An error occurred while parsing the uploaded PDF" });
+    }
 });
 
 // Helper for Google Embeddings instance
