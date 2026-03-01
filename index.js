@@ -11,12 +11,21 @@ import { createStuffDocumentsChain } from "langchain/chains/combine_documents";
 // Load environment variables configured in server/.env
 dotenv.config();
 
-const redisConnection = {
-    host: process.env.REDIS_HOST || "localhost",
-    port: process.env.REDIS_PORT ? parseInt(process.env.REDIS_PORT) : 6379,
-    password: process.env.REDIS_PASSWORD || undefined,
-    tls: process.env.REDIS_TLS === "true" ? {} : undefined,
-};
+let redisConnection;
+if (process.env.REDIS_HOST && process.env.REDIS_HOST.startsWith('redis')) {
+    // If it's a full URL string (e.g., from Upstash token endpoint)
+    redisConnection = {
+        url: process.env.REDIS_HOST,
+        tls: process.env.REDIS_TLS === "true" ? {} : undefined,
+    };
+} else {
+    redisConnection = {
+        host: process.env.REDIS_HOST || "localhost",
+        port: process.env.REDIS_PORT ? parseInt(process.env.REDIS_PORT) : 6379,
+        password: process.env.REDIS_PASSWORD || undefined,
+        tls: process.env.REDIS_TLS === "true" ? {} : undefined,
+    };
+}
 
 const queue = new Queue("file-upload-queue", {
     connection: redisConnection
