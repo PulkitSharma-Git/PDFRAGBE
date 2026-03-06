@@ -35,8 +35,13 @@ const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 
 const app = express();
-app.use(cors());
-app.use(express.json()); // Allow parsing JSON bodies
+app.use(cors({
+    origin: "*",
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+}));
+app.options(/.*/, cors()); // Pre-flight for all routes (Express 5 compatible)
+app.use(express.json());
 
 app.get("/", (req, res) => {
     res.json({ status: "All Good !" });
