@@ -1,49 +1,20 @@
 import { Worker } from 'bullmq';
-import fs from 'fs';
-import { createRequire } from 'module';
-const require = createRequire(import.meta.url);
-const pdfParse = require('pdf-parse');
+import redisConnection from './redisConnection';
+
 import { Document } from "@langchain/core/documents";
 import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
 import { QdrantVectorStore } from "@langchain/qdrant";
-import { v4 as uuidv4 } from 'uuid';
-import * as dotenv from 'dotenv';
+import dotenv from 'dotenv';
 
-// Load environment variables configured in server/.env
 dotenv.config();
-
-let redisConnection;
-if (process.env.REDIS_HOST && process.env.REDIS_HOST.startsWith('redis')) {
-    // If it's a full URL string (e.g., from Upstash token endpoint)
-    redisConnection = {
-        url: process.env.REDIS_HOST,
-        tls: process.env.REDIS_TLS === "true" ? {} : undefined,
-    };
-} else {
-    redisConnection = {
-        host: process.env.REDIS_HOST || "localhost",
-        port: process.env.REDIS_PORT ? parseInt(process.env.REDIS_PORT) : 6379,
-        password: process.env.REDIS_PASSWORD || undefined,
-        tls: process.env.REDIS_TLS === "true" ? {} : undefined,
-    };
-}
-
-// Pre-configured embeddings client using text-embedding-004 model structure
-const getEmbeddingsParams = () => {
-    return new GoogleGenerativeAIEmbeddings({
-        model: "gemini-embedding-001", 
-        taskType: "RETRIEVAL_DOCUMENT", 
-        apiKey: process.env.GEMINI_API_KEY || ""
-    });
-};
 
 const worker = new Worker('file-upload-queue', async job => {
     console.log("Job Processing Started:", job.data.filename);
     const data = JSON.parse(job.data);
 
     try {
-        // Step 1: Read extracted text directly from the queue payload
+        //Read extracted text directly from the queue payload
         console.log(`Loading pre-extracted text for ${data.filename}...`);
         
         if (!data.text) {
@@ -57,9 +28,9 @@ const worker = new Worker('file-upload-queue', async job => {
             })
         ];
 
-        // Step 2: Chunk the PDF text
+        //Chunk the PDF text
         console.log("Splitting PDF text into chunks...");
-        // This splits text into chunks of 1000 characters with a 200-character overlap for context
+        
         const textSplitter = new RecursiveCharacterTextSplitter({
             chunkSize: 1000,
             chunkOverlap: 200,
@@ -79,7 +50,11 @@ const worker = new Worker('file-upload-queue', async job => {
         });
 
         // Step 3: Configure Gemini Embedding model
-        const embeddings = getEmbeddingsParams();
+        const embeddings = new GoogleGenerativeAIEmbeddings({
+            model: "gemini-embedding-001", 
+            taskType: "RETRIEVAL_DOCUMENT", 
+            apiKey: process.env.GEMINI_API_KEY || ""
+        });
 
         // Step 4: Clean up old embeddings for this filename in Qdrant
         console.log(`Checking Qdrant for old embeddings of ${data.filename}...`);
