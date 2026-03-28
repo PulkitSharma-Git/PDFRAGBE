@@ -1,5 +1,5 @@
 import { Worker } from 'bullmq';
-import redisConnection from './redisConnection';
+import redisConnection from './redisConnection.js';
 
 import { Document } from "@langchain/core/documents";
 import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
