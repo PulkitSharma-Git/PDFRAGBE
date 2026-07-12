@@ -57,6 +57,10 @@ app.post("/upload/pdf", upload.single("pdf"), async (req, res) => {
     await queue.add("file-ready", {
       filename: req.file.originalname,
       text: pdfData.text,
+    }, {
+      jobId: `upload:${req.file.originalname}`,
+      removeOnComplete: { age: 1800 },
+      removeOnFail: { age: 86400 }
     });
 
     return res.json({ message: "PDF processed and queued", text: pdfData.text });
@@ -64,6 +68,33 @@ app.post("/upload/pdf", upload.single("pdf"), async (req, res) => {
   } catch (error) {
         console.error("PDF Upload Error:", error);
         return res.status(500).json({ error: "Failed to process PDF: " + error.message });
+  }
+});
+
+// Endpoint to check status of vectorized PDF
+app.get("/upload/status", async (req, res) => {
+  try {
+    const { filename } = req.query;
+    if (!filename) {
+      return res.status(400).json({ error: "Missing 'filename' query parameter" });
+    }
+    const jobId = `upload:${filename}`;
+    const job = await queue.getJob(jobId);
+    if (!job) {
+      // Default to completed if job has completed and aged out
+      return res.json({ filename, status: "completed" });
+    }
+    const state = await job.getState();
+    let status = "processing";
+    if (state === "completed") {
+      status = "completed";
+    } else if (state === "failed") {
+      status = "failed";
+    }
+    return res.json({ filename, status });
+  } catch (error) {
+    console.error("Status check error:", error);
+    return res.status(500).json({ error: "Failed to get upload status" });
   }
 });
 
