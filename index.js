@@ -58,7 +58,7 @@ app.post("/upload/pdf", upload.single("pdf"), async (req, res) => {
       filename: req.file.originalname,
       text: pdfData.text,
     }, {
-      jobId: `upload:${req.file.originalname}`,
+      jobId: `upload-${req.file.originalname}`,
       removeOnComplete: { age: 1800 },
       removeOnFail: { age: 86400 }
     });
@@ -78,7 +78,7 @@ app.get("/upload/status", async (req, res) => {
     if (!filename) {
       return res.status(400).json({ error: "Missing 'filename' query parameter" });
     }
-    const jobId = `upload:${filename}`;
+    const jobId = `upload-${filename}`;
     const job = await queue.getJob(jobId);
     if (!job) {
       // Default to completed if job has completed and aged out
