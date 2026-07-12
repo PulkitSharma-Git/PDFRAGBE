@@ -7,16 +7,19 @@
     "start": "node index.js",
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "node --watch index.js",
-    "dev:worker": "node --watch worker.js"
+    "dev:worker": "node --watch worker.js",
+    "postinstall": "node -e \"const fs = require('fs'); const file = './node_modules/pdf-parse/index.js'; if (fs.existsSync(file)) { fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace('let isDebugMode = !module.parent;', 'let isDebugMode = false;')); }\""
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
     "@google/genai": "^1.43.0",
+    "@huggingface/inference": "^4.13.16",
     "@langchain/community": "^0.3.45",
-    "@langchain/core": "^1.1.29",
+    "@langchain/core": "^1.2.1",
     "@langchain/google-genai": "^2.1.22",
+    "@langchain/groq": "^1.3.1",
     "@langchain/openai": "^0.5.11",
     "@langchain/qdrant": "^0.1.2",
     "@langchain/textsplitters": "^1.0.1",
